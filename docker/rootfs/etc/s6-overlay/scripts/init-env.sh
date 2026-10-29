@@ -8,7 +8,7 @@ gen() {
 
 RNDSTR=$(gen 10)
 INTERNAL_REST_TOKEN=$(gen 64)
-INTERNAL_SOCKET_PATH="rwint-${RNDSTR}"
+INTERNAL_SOCKET_PATH="umiji-int-${RNDSTR}"
 XTLS_API_SOCKET_PATH="xtls-api-${RNDSTR}"
 
 ENV_DIR=/run/s6/container_environment

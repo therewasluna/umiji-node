@@ -45,7 +45,7 @@ tag-release:
 
 
 # ─── Local image builds ──────────────────────────────────────────────────────
-IMAGE    ?= rwnode
+IMAGE    ?= umiji-node
 TAG      ?= local
 VARIANT  ?= plain
 PLATFORM ?= linux/amd64
