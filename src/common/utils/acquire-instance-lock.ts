@@ -1,6 +1,6 @@
 import net from 'node:net';
 
-const INSTANCE_LOCK_SOCKET = '\0rwnode-lock' as const;
+const INSTANCE_LOCK_SOCKET = '\0umiji-node-lock' as const;
 
 let _lockServer: net.Server | null = null;
 
