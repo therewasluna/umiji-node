@@ -5,6 +5,7 @@ FROM node:24.22-trixie-slim AS build
 WORKDIR /opt/app
 
 COPY package*.json ./
+COPY vendor ./vendor
 RUN npm ci --prefer-offline --no-audit --no-fund
 
 COPY . .
