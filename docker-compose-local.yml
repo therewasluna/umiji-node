@@ -1,0 +1,19 @@
+services:
+  umiji-node-local:
+    container_name: umiji-node-local
+    hostname: umiji-node-local
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        INTEGRATIONS: ${INTEGRATIONS:-}
+    networks:
+      - umiji-node-dev
+    ports:
+      - '11000:11000'
+    env_file:
+      - .env
+
+networks:
+  umiji-node-dev:
+    external: false

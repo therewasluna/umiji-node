@@ -1,0 +1,16 @@
+services:
+  umiji-node:
+    image: ghcr.io/therewasluna/umiji-node:latest
+    container_name: umiji-node
+    hostname: umiji-node
+    network_mode: host
+    restart: always
+    cap_add:
+      - NET_ADMIN
+    ulimits:
+      nofile:
+        soft: 1048576
+        hard: 1048576
+    environment:
+      - NODE_PORT=2222
+      - SECRET_KEY=""
