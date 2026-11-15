@@ -8,7 +8,6 @@ export namespace StartXrayCommand {
     export const RequestSchema = z.object({
         internals: z.object({
             metadata: NodeMetadataSchema.optional(),
-            integrations: z.record(z.string(), z.unknown()).optional(),
             forceRestart: z.boolean().default(false),
             hashes: z.object({
                 emptyConfig: z.string(),

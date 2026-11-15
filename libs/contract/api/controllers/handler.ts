@@ -8,4 +8,5 @@ export const HANDLER_ROUTES = {
 
     DROP_USERS_CONNECTIONS: 'drop-users-connections',
     DROP_IPS: 'drop-ips',
+    SYNC_IP_LIMITS: 'sync-ip-limits',
 } as const;

@@ -35,11 +35,33 @@ RUN apk add --no-cache curl \
     && curl -fsSL -o /tmp/xray.dgst "${BASE}/${ARCHIVE}.dgst" \
     && echo "$(awk '/^SHA2-256=/ { print $2 }' /tmp/xray.dgst)  /tmp/${ARCHIVE}" | sha256sum -c - \
     && unzip -q "/tmp/${ARCHIVE}" -d /tmp/xray \
-    && install -m 755 /tmp/xray/xray /usr/local/bin/xray \
     && install -d /usr/local/share/xray \
     && install -m 644 /tmp/xray/geoip.dat /usr/local/share/xray/geoip.dat \
     && install -m 644 /tmp/xray/geosite.dat /usr/local/share/xray/geosite.dat \
     && rm -rf "/tmp/${ARCHIVE}" /tmp/xray /tmp/xray.dgst
+
+
+# Xray itself is built from source, with xray-overlay/ (MTProto inbound, IP limits) added on top.
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS xray-core
+
+ARG XRAY_CORE_VERSION=v26.7.28
+ARG UPSTREAM_REPO=XTLS
+ARG TARGETARCH
+# Override where proxy.golang.org is blocked, e.g. --build-arg GOPROXY=https://goproxy.cn,direct
+ARG GOPROXY=https://proxy.golang.org,direct
+
+WORKDIR /src
+
+RUN apk add --no-cache git \
+    && git clone --depth 1 --branch "${XRAY_CORE_VERSION}" "https://github.com/${UPSTREAM_REPO}/Xray-core" .
+
+COPY xray-overlay/ ./
+
+# The few upstream edits the overlay can't avoid; fails the build if a version bump moves them.
+RUN git apply patches/*.patch
+
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
+    go build -o /xray -trimpath -buildvcs=false -ldflags="-s -w -buildid=" ./main
 
 
 FROM alpine:3.21 AS asn
@@ -94,7 +116,7 @@ WORKDIR /opt/app
 
 COPY --from=build /opt/app/dist ./dist
 
-COPY --from=xray /usr/local/bin/xray /usr/local/bin/xray
+COPY --from=xray-core /xray /usr/local/bin/xray
 COPY --from=xray /usr/local/share/xray/geoip.dat /usr/local/share/xray/geoip.dat
 COPY --from=xray /usr/local/share/xray/geosite.dat /usr/local/share/xray/geosite.dat
 COPY --from=asn /usr/local/share/asn /usr/local/share/asn

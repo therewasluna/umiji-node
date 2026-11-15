@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package xray.app.iplimit;
+option csharp_namespace = "Xray.App.Iplimit";
+option go_package = "github.com/xtls/xray-core/app/iplimit";
+option java_package = "com.xray.app.iplimit";
+option java_multiple_files = true;
+
+message Entry {
+  string email = 1;
+  // How many IPs may use this user at once, across all nodes.
+  uint32 limit = 2;
+  // IPs the panel saw this user on, across every node, that it lets keep their slots.
+  repeated string ips = 3;
+}
+
+// Sent through HandlerService.AlterInbound with any inbound's tag. It replaces the whole
+// table: users left out lose their limit.
+message SyncOperation {
+  repeated Entry users = 1;
+}

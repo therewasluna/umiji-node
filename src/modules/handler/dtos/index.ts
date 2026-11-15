@@ -4,3 +4,4 @@ export * from './drop-ips.dto';
 export * from './drop-users-connections.dto';
 export * from './remove-user.dto';
 export * from './remove-users.dto';
+export * from './sync-ip-limits.dto';

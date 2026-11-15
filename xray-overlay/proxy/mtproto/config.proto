@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package xray.proxy.mtproto;
+option csharp_namespace = "Xray.Proxy.Mtproto";
+option go_package = "github.com/xtls/xray-core/proxy/mtproto";
+option java_package = "com.xray.proxy.mtproto";
+option java_multiple_files = true;
+
+import "common/protocol/user.proto";
+
+message Account {
+  // 32 hex characters (16 bytes), without the "ee" prefix or the domain.
+  string secret = 1;
+  // This user's own sponsored channel tag, 32 hex characters. Overrides the inbound's.
+  string ad_tag = 2;
+}
+
+message ServerConfig {
+  repeated xray.common.protocol.User users = 1;
+  // SNI clients present in their TLS hello. It is part of the link users get.
+  string domain = 2;
+  // host:port that unauthenticated connections are forwarded to. Defaults to domain:443.
+  string target = 3;
+  // Sponsored channel tag from @MTProxybot, 32 hex characters. Connections then use
+  // Telegram's middle proxies, and fall back to direct when those can't be used.
+  string ad_tag = 4;
+  // This node's public IPv4, for ad_tag when its network interface has a private address.
+  string public_ip = 5;
+}

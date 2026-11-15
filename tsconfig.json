@@ -15,7 +15,6 @@
     "baseUrl": "./",
     "paths": {
       "@common/*": ["./src/common/*"],
-      "@integration-modules/*": ["./src/integration-modules/*"],
       "@modules/*": ["./src/modules/*"],
       "@libs/contracts/*": ["./libs/contract/*"],
       "@contract/*": ["./libs/contract/*"],

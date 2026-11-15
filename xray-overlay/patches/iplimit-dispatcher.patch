@@ -1,0 +1,32 @@
+diff --git a/app/dispatcher/default.go b/app/dispatcher/default.go
+index 2717df5..1cc681b 100644
+--- a/app/dispatcher/default.go
++++ b/app/dispatcher/default.go
+@@ -6,6 +6,7 @@ import (
+ 	"sync"
+ 	"time"
+ 
++	"github.com/xtls/xray-core/app/iplimit"
+ 	"github.com/xtls/xray-core/common"
+ 	"github.com/xtls/xray-core/common/buf"
+ 	"github.com/xtls/xray-core/common/errors"
+@@ -268,6 +269,9 @@ func (d *DefaultDispatcher) Dispatch(ctx context.Context, destination net.Destin
+ 	if !destination.IsValid() {
+ 		panic("Dispatcher: Invalid destination.")
+ 	}
++	if err := iplimit.Admit(ctx, d.stats); err != nil {
++		return nil, err
++	}
+ 	outbounds := session.OutboundsFromContext(ctx)
+ 	if len(outbounds) == 0 {
+ 		outbounds = []*session.Outbound{{}}
+@@ -325,6 +329,9 @@ func (d *DefaultDispatcher) DispatchLink(ctx context.Context, destination net.De
+ 	if !destination.IsValid() {
+ 		return errors.New("Dispatcher: Invalid destination.")
+ 	}
++	if err := iplimit.Admit(ctx, d.stats); err != nil {
++		return err
++	}
+ 	outbounds := session.OutboundsFromContext(ctx)
+ 	if len(outbounds) == 0 {
+ 		outbounds = []*session.Outbound{{}}

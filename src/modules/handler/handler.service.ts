@@ -7,13 +7,18 @@ import { EventBus } from '@nestjs/cqrs';
 import { XtlsApi } from '@umiji/xtls-sdk';
 import { InjectXtls } from '@umiji/xtls-sdk-nestjs';
 import { ISdkResponse } from '@umiji/xtls-sdk/build/src/common/types';
+import createTypedMessage from '@umiji/xtls-sdk/build/src/common/utils/create-typed-message/create-typed-message';
 import {
     RemoveUserResponseModel as RemoveUserResponseModelFromSdk,
     AddUserResponseModel as AddUserResponseModelFromSdk,
 } from '@umiji/xtls-sdk/build/src/handler/models';
+import { AddUserOperation } from '@umiji/xtls-sdk/build/src/xray-protos/app/proxyman/command/command';
+import { User } from '@umiji/xtls-sdk/build/src/xray-protos/common/protocol/user';
+import { TypedMessage } from '@umiji/xtls-sdk/build/src/xray-protos/common/serial/typed_message';
 
 import { fail, ok, TResult } from '@common/types';
 import { ERRORS } from '@libs/contracts/constants/errors';
+import { XRAY_ROUTING_RULES_MODEL } from '@libs/contracts/constants/xray/stats';
 
 import { DropConnectionsEvent } from '../_plugin/events/drop-connections';
 import { InternalService } from '../internal/internal.service';
@@ -24,6 +29,7 @@ import {
     DropUsersConnectionsRequestDto,
     RemoveUserRequestDto,
     RemoveUsersRequestDto,
+    SyncIpLimitsRequestDto,
 } from './dtos';
 import { AddUserResponseModel, RemoveUserResponseModel, GenericResponseModel } from './models';
 
@@ -31,6 +37,7 @@ import { AddUserResponseModel, RemoveUserResponseModel, GenericResponseModel } f
 export class HandlerService implements OnModuleInit {
     private readonly logger = new Logger(HandlerService.name);
     private capNetAdminAvailable = false;
+    private ipLimitsUnsupportedLogged = false;
 
     constructor(
         @InjectXtls() private readonly xtlsApi: XtlsApi,
@@ -160,6 +167,23 @@ export class HandlerService implements OnModuleInit {
                             uuid: item.password,
                             level: 0,
                         });
+
+                        if (tempRes.isOk) {
+                            await this.internalService.addUserToInbound(
+                                item.tag,
+                                hashData.vlessUuid,
+                            );
+                        }
+                        response.push(tempRes);
+
+                        break;
+                    case 'mtproto':
+                        tempRes = await this.addMtprotoUser(
+                            item.tag,
+                            item.username,
+                            item.secret,
+                            item.adTag,
+                        );
 
                         if (tempRes.isOk) {
                             await this.internalService.addUserToInbound(
@@ -337,6 +361,20 @@ export class HandlerService implements OnModuleInit {
                                 );
                             }
                             break;
+                        case 'mtproto':
+                            tempRes = await this.addMtprotoUser(
+                                item.tag,
+                                user.userData.userId,
+                                item.secret,
+                                item.adTag,
+                            );
+                            if (tempRes.isOk) {
+                                await this.internalService.addUserToInbound(
+                                    item.tag,
+                                    user.userData.vlessUuid,
+                                );
+                            }
+                            break;
                         default:
                             break;
                     }
@@ -453,6 +491,103 @@ export class HandlerService implements OnModuleInit {
         } catch (error) {
             this.logger.error(error);
             return ok(new GenericResponseModel(false));
+        }
+    }
+
+    // The SDK has no IP-limit call, so iplimit.SyncOperation is encoded by hand. Any inbound
+    // carries it, and the API inbound always exists.
+    public async syncIpLimits(
+        data: SyncIpLimitsRequestDto,
+    ): Promise<TResult<GenericResponseModel>> {
+        const varint = (n: number) => {
+            const out: number[] = [];
+            while (n > 0x7f) {
+                out.push((n & 0x7f) | 0x80);
+                n >>>= 7;
+            }
+            out.push(n);
+            return Buffer.from(out);
+        };
+        const field = (key: number, value: Buffer) =>
+            Buffer.concat([Buffer.from([key]), varint(value.length), value]);
+
+        // SyncOperation { repeated Entry users = 1 }, Entry { email = 1, limit = 2, repeated ips = 3 }
+        const value = Buffer.concat(
+            data.users.map((user) =>
+                field(
+                    0x0a,
+                    Buffer.concat([
+                        field(0x0a, Buffer.from(user.username)),
+                        Buffer.from([0x10]),
+                        varint(user.limit),
+                        ...user.ips.map((ip) => field(0x1a, Buffer.from(ip))),
+                    ]),
+                ),
+            ),
+        );
+
+        try {
+            await this.xtlsApi.handler.rawClient.alterInbound({
+                tag: XRAY_ROUTING_RULES_MODEL.inboundTag[0],
+                operation: TypedMessage.create({ type: 'xray.app.iplimit.SyncOperation', value }),
+            });
+
+            return ok(new GenericResponseModel(true));
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+
+            if (message.includes('unknown operation')) {
+                if (!this.ipLimitsUnsupportedLogged) {
+                    this.ipLimitsUnsupportedLogged = true;
+                    this.logger.warn(
+                        'IP limits are not enforced on this node: its Xray core is not the Umiji build.',
+                    );
+                }
+            } else {
+                this.logger.error(`Failed to sync IP limits: ${message}`);
+            }
+
+            return ok(new GenericResponseModel(false));
+        }
+    }
+
+    // The SDK has no MTProto call, so mtproto.Account is encoded by hand: strings in
+    // fields 1 and 2. Both are 32 characters, so each length fits in a single byte.
+    private async addMtprotoUser(
+        tag: string,
+        username: string,
+        secret: string,
+        adTag: null | string,
+    ): Promise<ISdkResponse<AddUserResponseModelFromSdk>> {
+        const field = (key: number, value: string) =>
+            Buffer.concat([Buffer.from([key, value.length]), Buffer.from(value)]);
+
+        try {
+            await this.xtlsApi.handler.rawClient.alterInbound({
+                tag,
+                operation: createTypedMessage(AddUserOperation, {
+                    user: User.create({
+                        email: username,
+                        level: 0,
+                        account: TypedMessage.create({
+                            type: 'xray.proxy.mtproto.Account',
+                            value: adTag
+                                ? Buffer.concat([field(0x0a, secret), field(0x12, adTag)])
+                                : field(0x0a, secret),
+                        }),
+                    }),
+                }),
+            });
+
+            return { isOk: true, data: new AddUserResponseModelFromSdk(true) };
+        } catch (error) {
+            const message = error instanceof Error ? error.message : '';
+
+            if (message.includes('already exists')) {
+                return { isOk: true, data: new AddUserResponseModelFromSdk(false) };
+            }
+
+            return { isOk: false, message };
         }
     }
 

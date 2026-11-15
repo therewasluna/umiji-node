@@ -31,6 +31,13 @@ export namespace AddUsersCommand {
         tag: z.string(),
     });
 
+    const BaseMtprotoUser = z.object({
+        type: z.literal('mtproto'),
+        tag: z.string(),
+        secret: z.string(),
+        adTag: z.string().nullable(),
+    });
+
     export const RequestSchema = z.object({
         affectedInboundTags: z.array(z.string()),
         users: z.array(
@@ -42,6 +49,7 @@ export namespace AddUsersCommand {
                         BaseShadowsocksUser,
                         BaseShadowsocks22User,
                         BaseHysteriaUser,
+                        BaseMtprotoUser,
                     ]),
                 ),
 

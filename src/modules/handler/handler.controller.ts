@@ -16,6 +16,8 @@ import {
     RemoveUserResponseDto,
     RemoveUsersRequestDto,
     RemoveUsersResponseDto,
+    SyncIpLimitsRequestDto,
+    SyncIpLimitsResponseDto,
 } from './dtos';
 import { AddUserRequestDto, AddUserResponseDto } from './dtos/add-user.dto';
 import { HandlerService } from './handler.service';
@@ -81,6 +83,18 @@ export class HandlerController {
     @Post(HANDLER_ROUTES.DROP_IPS)
     public async dropIps(@Body() body: DropIpsRequestDto): Promise<DropIpsResponseDto> {
         const response = await this.handlerService.dropIps(body);
+        const data = errorHandler(response);
+
+        return {
+            response: data,
+        };
+    }
+
+    @Post(HANDLER_ROUTES.SYNC_IP_LIMITS)
+    public async syncIpLimits(
+        @Body() body: SyncIpLimitsRequestDto,
+    ): Promise<SyncIpLimitsResponseDto> {
+        const response = await this.handlerService.syncIpLimits(body);
         const data = errorHandler(response);
 
         return {
